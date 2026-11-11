@@ -15,6 +15,9 @@ const FIELD_LABEL = {
 const KIND_LABEL = { take: 'Lấy ra', add: 'Nhập thêm', create: 'Tạo mới', edit: 'Sửa', delete: 'Xóa', import: 'Import', restore: 'Khôi phục' };
 const WEEKDAYS = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const LS_KEY = 'component_inventory_v1';
+/* Stock levels. Thresholds: 0 | 1–10 | 11–1000 | > 1000 (negative counts as out). */
+const LEVEL_LABEL = { out: 'Hết hàng', low: 'Còn ít hàng', ok: 'Còn hàng', high: 'Tồn nhiều' };
+const stockLevel = (q) => (q < 1 ? 'out' : q <= 10 ? 'low' : q <= 1000 ? 'ok' : 'high');
 const LS_PERSON = 'component_inventory_last_person';
 
 /* ---------------- helpers ---------------- */
@@ -115,7 +118,7 @@ const backend = {
 let state = emptyInventory();
 const ui = {
   tab: 'inventory',
-  search: '', category: '', location: '', onlyEmpty: false,
+  search: '', category: '', location: '', level: '',
   sort: { key: 'mpn', dir: 1 },
   selected: new Set(),
   hist: { search: '', kind: '', person: '' },
@@ -653,7 +656,7 @@ function visibleParts() {
   const list = state.parts.filter((p) => {
     if (ui.category && p.category !== ui.category) return false;
     if (ui.location && p.location !== ui.location) return false;
-    if (ui.onlyEmpty && p.quantity >= 1) return false;
+    if (ui.level && stockLevel(p.quantity) !== ui.level) return false;
     return tokens.length === 0 || matchesQuery(searchIndex(p), tokens);
   });
   const { key, dir } = ui.sort;
@@ -680,7 +683,7 @@ function renderParts() {
       <td class="ellipsis" title="${esc(p.name)}">${esc(p.name)}</td>
       <td>${esc(p.footprint)}</td>
       <td>${esc(p.pitch)}</td>
-      <td class="num qty">${p.quantity < 1 ? '<span class="badge-out">Hết hàng</span>' : ''}<span class="qty-pill ${p.quantity < 1 ? 'qty-zero' : ''}">${fmtNum(p.quantity)}</span></td>
+      <td class="num qty lvl-${stockLevel(p.quantity)}" title="${LEVEL_LABEL[stockLevel(p.quantity)]}"><div class="qty-cell"><span class="lvl-label">${LEVEL_LABEL[stockLevel(p.quantity)]}</span><span class="qty-pill">${fmtNum(p.quantity)}</span></div></td>
       <td class="ellipsis" title="${esc(p.description)}">${esc(p.description)}</td>
       <td>${esc(p.manufacturer)}</td>
       <td class="mono">${esc(p.mpn)}</td>
@@ -722,10 +725,12 @@ function renderParts() {
   });
 
   const total = state.parts.reduce((s, p) => s + p.quantity, 0);
-  const out = state.parts.filter((p) => p.quantity < 1).length;
+  const out = state.parts.filter((p) => stockLevel(p.quantity) === 'out').length;
+  const low = state.parts.filter((p) => stockLevel(p.quantity) === 'low').length;
   $('#status-counts').innerHTML =
     `${fmtNum(state.parts.length)} linh kiện · tổng tồn ${fmtNum(total)}` +
     (out ? ` · <span class="status-out">${fmtNum(out)} hết hàng</span>` : '') +
+    (low ? ` · <span class="status-low">${fmtNum(low)} còn ít</span>` : '') +
     (list.length !== state.parts.length ? ` · đang hiển thị ${fmtNum(list.length)}` : '');
 }
 
@@ -798,7 +803,7 @@ function wire() {
   });
   $('#filter-category').addEventListener('change', (e) => { ui.category = e.target.value; renderParts(); });
   $('#filter-location').addEventListener('change', (e) => { ui.location = e.target.value; renderParts(); });
-  $('#filter-empty').addEventListener('change', (e) => { ui.onlyEmpty = e.target.checked; renderParts(); });
+  $('#filter-level').addEventListener('change', (e) => { ui.level = e.target.value; renderParts(); });
 
   $('#btn-new').addEventListener('click', openNewPart);
   $('#btn-import').addEventListener('click', importFlow);

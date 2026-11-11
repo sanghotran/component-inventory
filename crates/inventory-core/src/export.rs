@@ -28,6 +28,20 @@ fn cmp_text(a: &str, b: &str) -> std::cmp::Ordering {
     }
 }
 
+/// Stock level for a quantity: 0 | 1–10 | 11–1000 | > 1000 (negative counts as out).
+pub fn stock_level(q: i64) -> (&'static str, u32, u32) {
+    // (label, background RGB, font RGB)
+    if q < 1 {
+        ("Hết hàng", 0xD92D20, 0xFFFFFF)
+    } else if q <= 10 {
+        ("Còn ít hàng", 0xE0A800, 0xFFFFFF)
+    } else if q <= 1000 {
+        ("Còn hàng", 0x2B8A3E, 0xFFFFFF)
+    } else {
+        ("Tồn nhiều", 0xA5D8FF, 0x000000)
+    }
+}
+
 /// Report order: Manufacturer Part Number, then Part number, then Name.
 pub fn sorted_parts(parts: &[Part]) -> Vec<&Part> {
     let mut v: Vec<&Part> = parts.iter().collect();
@@ -63,22 +77,22 @@ pub fn write_report(path: &Path, inv: &Inventory) -> Result<()> {
     let mut wb = Workbook::new();
     let cell = Format::new().set_border(FormatBorder::Thin);
     let num = Format::new().set_border(FormatBorder::Thin).set_num_format("#,##0");
-    let qty_ok = Format::new()
-        .set_border(FormatBorder::Thin)
-        .set_num_format("#,##0")
-        .set_bold()
-        .set_background_color(Color::RGB(0xFFF4CC));
-    let qty_out = Format::new()
-        .set_border(FormatBorder::Thin)
-        .set_num_format("#,##0")
-        .set_bold()
-        .set_font_color(Color::RGB(0x9B1C1C))
-        .set_background_color(Color::RGB(0xF8D7DA));
+    let level_fmt = |bg: u32, fg: u32, numeric: bool| {
+        let f = Format::new()
+            .set_border(FormatBorder::Thin)
+            .set_bold()
+            .set_font_color(Color::RGB(fg))
+            .set_background_color(Color::RGB(bg));
+        if numeric { f.set_num_format("#,##0") } else { f.set_align(FormatAlign::Center) }
+    };
 
     // --- Sheet 1: stock ---
     let ws = wb.add_worksheet();
     ws.set_name("Ton kho")?;
     write_header(ws, &STOCK_HEADERS, &STOCK_WIDTHS)?;
+    let status_col = STOCK_HEADERS.len() as u16;
+    ws.write_string_with_format(0, status_col, "Trạng thái", &header_format())?;
+    ws.set_column_width(status_col, 14.0)?;
     for (i, p) in sorted_parts(&inv.parts).into_iter().enumerate() {
         let r = (i + 1) as u32;
         ws.write_number_with_format(r, 0, (i + 1) as f64, &num)?;
@@ -86,8 +100,9 @@ pub fn write_report(path: &Path, inv: &Inventory) -> Result<()> {
         ws.write_string_with_format(r, 2, &p.name, &cell)?;
         ws.write_string_with_format(r, 3, &p.footprint, &cell)?;
         ws.write_string_with_format(r, 4, &p.pitch, &cell)?;
-        let qf = if p.quantity < 1 { &qty_out } else { &qty_ok };
-        ws.write_number_with_format(r, 5, p.quantity as f64, qf)?;
+        let (label, bg, fg) = stock_level(p.quantity);
+        ws.write_number_with_format(r, 5, p.quantity as f64, &level_fmt(bg, fg, true))?;
+        ws.write_string_with_format(r, status_col, label, &level_fmt(bg, fg, false))?;
         ws.write_string_with_format(r, 6, &p.description, &cell)?;
         ws.write_string_with_format(r, 7, &p.manufacturer, &cell)?;
         ws.write_string_with_format(r, 8, &p.mpn, &cell)?;
@@ -95,7 +110,7 @@ pub fn write_report(path: &Path, inv: &Inventory) -> Result<()> {
         ws.write_string_with_format(r, 10, &p.location, &cell)?;
     }
     if !inv.parts.is_empty() {
-        ws.autofilter(0, 0, inv.parts.len() as u32, (STOCK_HEADERS.len() - 1) as u16)?;
+        ws.autofilter(0, 0, inv.parts.len() as u32, status_col)?;
     }
 
     // --- Sheet 2: history ---
@@ -221,6 +236,20 @@ mod tests {
         // two rows share part number C-100N but stay separate
         assert_eq!(r.rows.iter().filter(|x| x.part_number == "C-100N").count(), 2);
         assert_eq!(r.rows[1].quantity, Some(0));
+        assert_eq!(r.unmapped, ["STT", "Trạng thái"], "STT and status columns are ignored on re-import");
+
+        use calamine::{open_workbook, Reader, Xlsx};
+        let mut wb: Xlsx<_> = open_workbook(&p).unwrap();
+        let range = wb.worksheet_range("Ton kho").unwrap();
+        let status: Vec<String> = range.rows().skip(1).map(|r| r[11].to_string()).collect();
+        assert_eq!(status, ["Còn ít hàng", "Hết hàng", "Còn hàng", "Còn ít hàng"]);
+    }
+
+    #[test]
+    fn stock_level_thresholds() {
+        let l = |q| stock_level(q).0;
+        assert_eq!([l(-2), l(0), l(1), l(10), l(11), l(1000), l(1001)],
+            ["Hết hàng", "Hết hàng", "Còn ít hàng", "Còn ít hàng", "Còn hàng", "Còn hàng", "Tồn nhiều"]);
     }
 
     #[test]

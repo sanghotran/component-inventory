@@ -28,6 +28,9 @@
   --add-bg: #2b8a3e;
   --add-hover: #237032;
   --btn-on-color: #ffffff;
+  --kind-new-bg: #1971c2;
+  --kind-other-bg: #dee3ea;
+  --kind-other-text: #1c2430;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -60,6 +63,9 @@
     --add-bg: #3fb760;
     --add-hover: #57c875;
     --btn-on-color: #10161e;
+    --kind-new-bg: #74b3f0;
+    --kind-other-bg: #3a4555;
+    --kind-other-text: #e6eaf0;
   }
 }
 
@@ -168,18 +174,22 @@ button.small { padding: 3px 8px; min-height: 26px; font-size: 12.5px; }
 
 /* Quantity column highlight */
 .grid th.qty { background: var(--qty-head); color: var(--qty-text); }
-.grid td.qty { background: var(--qty-bg); color: var(--qty-text); font-weight: 700; font-size: 15px; }
+.grid td.qty { font-weight: 700; font-size: 15px; min-width: 150px; }
+.qty-cell { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.lvl-label { font-size: 11.5px; font-weight: 600; opacity: 0.95; }
+/* stock level colours (same in light and dark mode) */
+.grid td.qty.lvl-out  { background: #d92d20; color: #ffffff; }
+.grid td.qty.lvl-low  { background: #e0a800; color: #ffffff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45); }
+.grid td.qty.lvl-ok   { background: #2b8a3e; color: #ffffff; }
+.grid td.qty.lvl-high { background: #a5d8ff; color: #000000; }
 
 /* out of stock (quantity < 1): whole row red */
 .grid tbody tr.out { background: var(--out-bg); box-shadow: inset 4px 0 0 var(--out-text); }
 .grid tbody tr.out:hover { background: var(--out-hover); }
 .grid tbody tr.out td { color: var(--out-text); }
-.grid tbody tr.out td.qty { background: color-mix(in srgb, var(--out-text) 22%, var(--out-bg)); color: var(--out-text); }
-.badge-out {
-  display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 999px;
-  background: var(--out-text); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 1px;
-}
+.grid tbody tr.out td.qty { color: #ffffff; }
 .status-out { color: var(--out-text); font-weight: 700; }
+.status-low { color: #b38600; font-weight: 700; }
 
 /* action column: pinned to the right, own background, solid buttons */
 .grid .col-actions {
@@ -203,13 +213,19 @@ button.btn-take:disabled { background: var(--border); color: var(--muted); opaci
 .col-check { width: 36px; }
 .col-actions { width: 1%; }
 .actions { display: flex; gap: 4px; }
-.qty-zero { color: var(--danger); font-weight: 600; }
 .qty-pill { display: inline-block; min-width: 2.2em; text-align: right; }
 .delta-pos { color: var(--ok); font-weight: 600; }
 .delta-neg { color: var(--danger); font-weight: 600; }
-.kind { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: var(--accent-soft); }
-.kind-take { background: var(--danger-soft); }
-.kind-add, .kind-create { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+/* history "Thao tác" badges: solid colours, same as the Lấy / Thêm buttons */
+.kind {
+  display: inline-block; min-width: 82px; padding: 3px 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; text-align: center;
+  background: var(--kind-other-bg); color: var(--kind-other-text);
+}
+.kind-take { background: var(--take-bg); color: var(--btn-on-color); }
+.kind-add { background: var(--add-bg); color: var(--btn-on-color); }
+.kind-create, .kind-import { background: var(--kind-new-bg); color: var(--btn-on-color); }
+.kind-delete { background: var(--out-text); color: var(--btn-on-color); }
 .empty { padding: 48px 16px; text-align: center; color: var(--muted); }
 
 /* ---------- footer ---------- */
