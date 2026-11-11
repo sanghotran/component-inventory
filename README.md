@@ -51,7 +51,7 @@ Node.js 18+.
 
 ```powershell
 npm install
-npm run build          # exe + bộ cài trong target\release\ và target\release\bundle\nsis\
+npm run build          # target\release\component-inventory.exe (portable) và bộ cài trong target\release\bundle\nsis\
 npm run dev            # chạy thử có hot reload
 ```
 

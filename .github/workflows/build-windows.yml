@@ -68,12 +68,28 @@ jobs:
         run: npm run build
 
       # 7. Collect the portable exe and the installer
+      # Tauri 2 keeps the cargo crate name for the exe (component-inventory.exe),
+      # so pick up whatever single exe is in target/release instead of hard-coding it.
       - name: Collect outputs
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item target/release/QuanLyLinhKien.exe dist/QuanLyLinhKien-portable.exe
-          Copy-Item target/release/bundle/nsis/*.exe dist/
+          $exe = Get-ChildItem target/release/*.exe -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -notlike '*-setup.exe' } | Select-Object -First 1
+          if (-not $exe) {
+            Write-Host "Không tìm thấy exe trong target/release. Các exe có trong target:"
+            Get-ChildItem -Recurse target -Filter *.exe | Select-Object -ExpandProperty FullName
+            throw "portable exe not found"
+          }
+          Copy-Item $exe.FullName dist/QuanLyLinhKien-portable.exe
+          $setup = Get-ChildItem target/release/bundle/nsis/*.exe -ErrorAction SilentlyContinue
+          if (-not $setup) {
+            Write-Host "Không tìm thấy bộ cài NSIS. Nội dung target/release/bundle:"
+            Get-ChildItem -Recurse target/release/bundle -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+            throw "nsis installer not found"
+          }
+          Copy-Item $setup dist/
           Get-ChildItem dist
 
       - name: Upload artifact
