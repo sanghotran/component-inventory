@@ -13,12 +13,20 @@ Giao diện là HTML/CSS/JS thuần, phần xử lý dữ liệu viết bằng R
 - **Thêm** (nhập kho): hiện tổng tồn sau khi thêm.
 - Thêm mới / sửa / xóa linh kiện; chọn từng dòng hoặc chọn tất cả rồi "Xóa đã chọn".
   Mọi hộp thoại xác nhận do app tự hiện (không dùng alert/confirm của trình duyệt).
-- Tìm kiếm, lọc theo danh mục / vị trí / hết hàng, sắp xếp theo cột, bảng cuộn bên trong khung.
+- Nhiều linh kiện có thể dùng chung Part number; mỗi linh kiện được nhận diện bằng
+  **Manufacturer Part Number** (MPN). Bảng mặc định xếp theo MPN (MPN trống ở cuối), không cho
+  trùng MPN; import cũng ghép theo MPN (dòng không có MPN thì ghép theo Part number).
+- Linh kiện có Quantity < 1 hiện cả dòng màu đỏ kèm nhãn "Hết hàng"; cột Quantity được tô nổi;
+  cột Thao tác ghim bên phải với nút Lấy (cam) và Thêm (xanh lá); bảng có đường chia cột.
+- Tìm kiếm: gõ nhiều từ theo thứ tự bất kỳ, không cần dấu, bỏ qua gạch ngang/khoảng trắng
+  (`tu 100n 0603`, `rc0603fr0710`), Esc để xóa. Lọc theo danh mục / vị trí / hết hàng,
+  sắp xếp theo cột, bảng cuộn bên trong khung.
 - **Lịch sử** mọi thao tác: ngày, thứ, giờ, loại thao tác, số lượng +/-, tồn sau, người, ghi chú.
 - **Import Excel/CSV** (.xlsx, .xls, .csv): tự tìm dòng tiêu đề, nhận tên cột tiếng Việt lẫn tiếng Anh
   (Số lượng / Qty / Quantity…), xem trước rồi mới ghi. Với part number đã có: cộng dồn, ghi đè
   hoặc giữ nguyên số lượng; các ô trống được điền từ file.
-- **Xuất Excel**: 2 sheet "Ton kho" và "Lich su" (có cột Ngày / Thứ / Giờ).
+- **Xuất Excel**: 2 sheet "Ton kho" (xếp theo MPN, ô Quantity < 1 tô đỏ) và "Lich su"
+  (có cột Ngày / Thứ / Giờ và Manufacturer Part Number).
 - File Excel mẫu để import; **Sao lưu** / **Khôi phục** toàn bộ dữ liệu ra file .json.
 
 ## Dữ liệu lưu ở đâu

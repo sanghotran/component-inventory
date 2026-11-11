@@ -15,6 +15,19 @@
   --row-selected: #e3eefb;
   --shadow: 0 8px 28px rgba(16, 24, 40, 0.18);
   --radius: 8px;
+  --col-line: #c9d1dc;
+  --qty-bg: #fff4cc;
+  --qty-head: #f7d774;
+  --qty-text: #5c4200;
+  --out-bg: #fde2e1;
+  --out-hover: #fbd0ce;
+  --out-text: #b42318;
+  --actions-bg: #e9eef5;
+  --take-bg: #e8590c;
+  --take-hover: #c94a06;
+  --add-bg: #2b8a3e;
+  --add-hover: #237032;
+  --btn-on-color: #ffffff;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -34,6 +47,19 @@
     --row-hover: #222a35;
     --row-selected: #233548;
     --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    --col-line: #3a4452;
+    --qty-bg: #3a3215;
+    --qty-head: #6b5715;
+    --qty-text: #ffe08a;
+    --out-bg: #4a1f1d;
+    --out-hover: #5a2522;
+    --out-text: #ff9b91;
+    --actions-bg: #252e3a;
+    --take-bg: #f08c3c;
+    --take-hover: #f5a05c;
+    --add-bg: #3fb760;
+    --add-hover: #57c875;
+    --btn-on-color: #10161e;
   }
 }
 
@@ -132,8 +158,45 @@ button.small { padding: 3px 8px; min-height: 26px; font-size: 12.5px; }
 .grid th[data-sort] { cursor: pointer; }
 .grid th[data-sort]:hover { text-decoration: underline; }
 .grid th .sort-mark { color: var(--accent); margin-left: 4px; }
+/* column dividers (both tables) */
+.grid th, .grid td { border-right: 1px solid var(--col-line); }
+.grid th:last-child, .grid td:last-child { border-right: 0; }
+.grid thead th { border-bottom: 2px solid var(--col-line); }
+
 .grid tbody tr:hover { background: var(--row-hover); }
 .grid tbody tr.selected { background: var(--row-selected); }
+
+/* Quantity column highlight */
+.grid th.qty { background: var(--qty-head); color: var(--qty-text); }
+.grid td.qty { background: var(--qty-bg); color: var(--qty-text); font-weight: 700; font-size: 15px; }
+
+/* out of stock (quantity < 1): whole row red */
+.grid tbody tr.out { background: var(--out-bg); box-shadow: inset 4px 0 0 var(--out-text); }
+.grid tbody tr.out:hover { background: var(--out-hover); }
+.grid tbody tr.out td { color: var(--out-text); }
+.grid tbody tr.out td.qty { background: color-mix(in srgb, var(--out-text) 22%, var(--out-bg)); color: var(--out-text); }
+.badge-out {
+  display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 999px;
+  background: var(--out-text); color: #fff; font-size: 11px; font-weight: 700; vertical-align: 1px;
+}
+.status-out { color: var(--out-text); font-weight: 700; }
+
+/* action column: pinned to the right, own background, solid buttons */
+.grid .col-actions {
+  position: sticky; right: 0; z-index: 1;
+  background: var(--actions-bg);
+  border-left: 2px solid var(--col-line);
+}
+.grid thead th.col-actions { z-index: 3; }
+.grid tbody tr.out td.col-actions { background: var(--actions-bg); color: var(--text); }
+button.btn-take, button.btn-add {
+  color: var(--btn-on-color); font-weight: 700; border: 0; min-width: 52px;
+}
+button.btn-take { background: var(--take-bg); }
+button.btn-take:hover:not(:disabled) { background: var(--take-hover); }
+button.btn-add { background: var(--add-bg); }
+button.btn-add:hover:not(:disabled) { background: var(--add-hover); }
+button.btn-take:disabled { background: var(--border); color: var(--muted); opacity: 1; }
 .grid td.num, .grid th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .grid td.ellipsis { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
 .grid td.mono { font-family: ui-monospace, Consolas, "Courier New", monospace; font-size: 13px; }

@@ -23,7 +23,7 @@
     <!-- ===== Tồn kho ===== -->
     <section id="tab-inventory" class="tab active">
       <div class="toolbar">
-        <input id="search" type="search" placeholder="Tìm: part number, tên, hãng, MPN, vị trí…" autocomplete="off">
+        <input id="search" type="search" placeholder="Tìm nhiều từ, không cần dấu: vd. 'tu 100n 0603', 'rc0603fr'… (Esc để xóa)" title="Mỗi từ phải khớp ở bất kỳ cột nào. Không phân biệt hoa thường, dấu, gạch ngang." autocomplete="off">
         <select id="filter-category" title="Lọc theo danh mục"><option value="">Tất cả danh mục</option></select>
         <select id="filter-location" title="Lọc theo vị trí"><option value="">Tất cả vị trí</option></select>
         <label class="check-inline" title="Chỉ hiện linh kiện đã hết"><input type="checkbox" id="filter-empty"> Hết hàng</label>
@@ -51,7 +51,7 @@
               <th data-sort="name">Name</th>
               <th data-sort="footprint">Footprint</th>
               <th data-sort="pitch">Pitch</th>
-              <th data-sort="quantity" class="num">Quantity</th>
+              <th data-sort="quantity" class="num qty">Quantity</th>
               <th data-sort="description">Descriptions</th>
               <th data-sort="manufacturer">Manufacturer</th>
               <th data-sort="mpn">Manufacturer Part Number</th>
@@ -69,7 +69,7 @@
     <!-- ===== Lịch sử ===== -->
     <section id="tab-history" class="tab">
       <div class="toolbar">
-        <input id="hist-search" type="search" placeholder="Tìm trong lịch sử…" autocomplete="off">
+        <input id="hist-search" type="search" placeholder="Tìm trong lịch sử: người, part number, MPN, ngày… (Esc để xóa)" autocomplete="off">
         <select id="hist-kind">
           <option value="">Mọi thao tác</option>
           <option value="take">Lấy ra</option>
@@ -93,6 +93,7 @@
               <th>Giờ</th>
               <th>Thao tác</th>
               <th>Part number</th>
+              <th>Manufacturer Part Number</th>
               <th>Name</th>
               <th class="num">Số lượng</th>
               <th class="num">Tồn sau</th>

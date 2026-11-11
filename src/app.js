@@ -25,6 +25,15 @@ const fmtNum = (n) => Number(n || 0).toLocaleString('vi-VN');
 const pad2 = (n) => String(n).padStart(2, '0');
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const norm = (s) => String(s ?? '').trim().toLowerCase();
+/* Search folding: lower-case, drop Vietnamese tone marks, đ -> d. */
+const fold = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
+/* Same text with separators removed so "rc0603fr0710" finds "RC0603FR-0710KL". */
+const compactOf = (s) => s.replace(/[\s\-_.\/,()#]/g, '');
+/* Identity of a part: MPN when present (several parts may share a part number),
+   otherwise the part number. */
+const partKey = (p) => (String(p.mpn ?? '').trim() ? 'mpn:' + norm(p.mpn) : 'pn:' + norm(p.part_number));
+const partLabel = (p) => p.mpn || p.part_number || p.name;
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
 function nowTs(d = new Date()) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
@@ -107,7 +116,7 @@ let state = emptyInventory();
 const ui = {
   tab: 'inventory',
   search: '', category: '', location: '', onlyEmpty: false,
-  sort: { key: 'part_number', dir: 1 },
+  sort: { key: 'mpn', dir: 1 },
   selected: new Set(),
   hist: { search: '', kind: '', person: '' },
   lastPerson: '',
@@ -125,7 +134,7 @@ function normalizeInventory(inv) {
   if (inv && Array.isArray(inv.history)) {
     out.history = inv.history.map((h) => ({
       id: String(h.id || uid()), ts: String(h.ts || ''), kind: String(h.kind || ''), part_id: String(h.part_id || ''),
-      part_number: String(h.part_number || ''), name: String(h.name || ''), delta: Math.trunc(Number(h.delta) || 0),
+      part_number: String(h.part_number || ''), mpn: String(h.mpn || ''), name: String(h.name || ''), delta: Math.trunc(Number(h.delta) || 0),
       after: Math.trunc(Number(h.after) || 0), person: String(h.person || ''), note: String(h.note || ''),
     }));
   }
@@ -146,7 +155,7 @@ function commit() {
 function log(kind, part, delta, after, person = '', note = '', when = new Date()) {
   state.history.unshift({
     id: uid(), ts: nowTs(when), kind,
-    part_id: part.id, part_number: part.part_number, name: part.name,
+    part_id: part.id, part_number: part.part_number, mpn: part.mpn || '', name: part.name,
     delta, after, person: person.trim(), note: note.trim(),
   });
 }
@@ -252,8 +261,10 @@ function startWhenClock() {
 }
 function partCard(p) {
   return `<div class="part-card">
-    <span class="k">Part number</span><b>${esc(p.part_number) || '<i>(trống)</i>'}</b>
+    <span class="k">Manufacturer P/N</span><b>${esc(p.mpn) || '<i>(trống)</i>'}</b>
+    <span class="k">Part number</span><span>${esc(p.part_number)}</span>
     <span class="k">Name</span><span>${esc(p.name)}</span>
+    <span class="k">Manufacturer</span><span>${esc(p.manufacturer)}</span>
     <span class="k">Footprint / Pitch</span><span>${esc([p.footprint, p.pitch].filter(Boolean).join(' / '))}</span>
     <span class="k">Vị trí</span><span>${esc(p.location)}</span>
     <span class="k">Đang tồn</span><span><b>${fmtNum(p.quantity)}</b></span>
@@ -273,7 +284,7 @@ function readInt(raw) {
 function findPart(id) { return state.parts.find((p) => p.id === id); }
 
 function openTake(part) {
-  if (part.quantity <= 0) { toast('Linh kiện này đã hết, không thể lấy.', 'error'); return; }
+  if (part.quantity < 1) { toast('Linh kiện này đã hết hàng, không thể lấy.', 'error'); return; }
   openDialog({
     title: 'Lấy linh kiện',
     body: partCard(part) + whenBlock('Ngày lấy') + `
@@ -312,7 +323,7 @@ function openTake(part) {
       commit();
       closeDialog();
       renderAll();
-      toast(`${person} đã lấy ${fmtNum(n)} × ${live.part_number || live.name} lúc ${fmtTime(when)}. Còn lại ${fmtNum(live.quantity)}.`, 'ok');
+      toast(`${person} đã lấy ${fmtNum(n)} × ${partLabel(live)} lúc ${fmtTime(when)}. Còn lại ${fmtNum(live.quantity)}.`, 'ok');
     },
   });
 }
@@ -353,7 +364,7 @@ function openAddStock(part) {
       commit();
       closeDialog();
       renderAll();
-      toast(`Đã thêm ${fmtNum(n)} × ${live.part_number || live.name}. Tổng tồn ${fmtNum(live.quantity)}.`, 'ok');
+      toast(`Đã thêm ${fmtNum(n)} × ${partLabel(live)}. Tổng tồn ${fmtNum(live.quantity)}.`, 'ok');
     },
   });
 }
@@ -388,8 +399,13 @@ function readPartForm(form, id) {
   if (!Number.isFinite(q) || q < 0) throw new Error('Quantity phải là số nguyên không âm.');
   p.quantity = q;
   if (!p.part_number) throw new Error('Part number là bắt buộc.');
-  const dup = state.parts.find((x) => x.id !== id && norm(x.part_number) === norm(p.part_number));
-  if (dup) throw new Error(`Part number "${p.part_number}" đã tồn tại (${dup.name || 'không tên'}). Hãy dùng "Thêm" trên dòng đó để cộng số lượng.`);
+  const key = partKey(p);
+  const dup = state.parts.find((x) => x.id !== id && partKey(x) === key);
+  if (dup) {
+    throw new Error(p.mpn
+      ? `Manufacturer Part Number "${p.mpn}" đã có (part number ${dup.part_number || '—'}). Hãy dùng "Thêm" trên dòng đó để cộng số lượng.`
+      : `Part number "${p.part_number}" chưa có MPN đã tồn tại. Nhập Manufacturer Part Number để phân biệt hai linh kiện cùng part number.`);
+  }
   return p;
 }
 
@@ -409,7 +425,7 @@ function openNewPart() {
       commit();
       closeDialog();
       renderAll();
-      toast(`Đã thêm ${p.part_number} (tồn ${fmtNum(p.quantity)}).`, 'ok');
+      toast(`Đã thêm ${partLabel(p)} (tồn ${fmtNum(p.quantity)}).`, 'ok');
     },
   });
 }
@@ -433,7 +449,7 @@ function openEditPart(part) {
       commit();
       closeDialog();
       renderAll();
-      toast(`Đã cập nhật ${live.part_number}.`, 'ok');
+      toast(`Đã cập nhật ${partLabel(live)}.`, 'ok');
     },
   });
 }
@@ -441,7 +457,7 @@ function openEditPart(part) {
 async function deleteParts(ids) {
   const parts = ids.map(findPart).filter(Boolean);
   if (!parts.length) return;
-  const list = parts.slice(0, 6).map((p) => `<li><b>${esc(p.part_number)}</b> ${esc(p.name)} (tồn ${fmtNum(p.quantity)})</li>`).join('');
+  const list = parts.slice(0, 6).map((p) => `<li><b>${esc(p.part_number)}</b> · ${esc(p.mpn || '—')} · ${esc(p.name)} (tồn ${fmtNum(p.quantity)})</li>`).join('');
   const more = parts.length > 6 ? `<li>… và ${parts.length - 6} linh kiện khác</li>` : '';
   const ok = await confirmDialog({
     title: parts.length === 1 ? 'Xóa linh kiện?' : `Xóa ${parts.length} linh kiện?`,
@@ -467,9 +483,9 @@ async function importFlow() {
   catch (e) { toast(errMsg(e), 'error'); return; }
   if (!res) return;
 
-  const byPn = new Map(state.parts.filter((p) => p.part_number).map((p) => [norm(p.part_number), p]));
+  const byKey = new Map(state.parts.map((p) => [partKey(p), p]));
   let existing = 0;
-  for (const r of res.rows) if (r.part_number && byPn.has(norm(r.part_number))) existing++;
+  for (const r of res.rows) if (byKey.has(partKey(r))) existing++;
   const fresh = res.rows.length - existing;
 
   const mappingHtml = res.mapping
@@ -480,7 +496,7 @@ async function importFlow() {
       <td class="mono">${esc(r.part_number)}</td><td class="ellipsis">${esc(r.name)}</td><td>${esc(r.footprint)}</td>
       <td>${esc(r.pitch)}</td><td class="num">${r.quantity == null ? '<i>—</i>' : fmtNum(r.quantity)}</td>
       <td>${esc(r.manufacturer)}</td><td class="mono">${esc(r.mpn)}</td><td>${esc(r.category)}</td><td>${esc(r.location)}</td>
-      <td>${byPn.has(norm(r.part_number)) ? 'đã có' : '<b>mới</b>'}</td></tr>`).join('');
+      <td>${byKey.has(partKey(r)) ? 'đã có' : '<b>mới</b>'}</td></tr>`).join('');
 
   openDialog({
     title: 'Xem trước import',
@@ -490,12 +506,13 @@ async function importFlow() {
         <span class="chip">📄 ${esc(res.file_name)} · sheet "${esc(res.sheet)}" · tiêu đề ở dòng ${res.header_row}</span>
         <span class="chip">${fmtNum(res.rows.length)} dòng</span>
         <span class="chip"><b>${fmtNum(fresh)}</b> mới</span>
-        <span class="chip"><b>${fmtNum(existing)}</b> trùng part number đã có</span>
+        <span class="chip"><b>${fmtNum(existing)}</b> đã có trong kho</span>
         ${res.skipped_rows ? `<span class="chip warn">${res.skipped_rows} dòng trống bị bỏ</span>` : ''}
         ${res.bad_quantity_rows ? `<span class="chip warn">${res.bad_quantity_rows} dòng có Quantity không phải số (coi như trống)</span>` : ''}
       </div>
       <div class="mapping">${mappingHtml}</div>${unmappedHtml}
-      <h3 class="mini" style="margin:12px 0 6px">Với linh kiện đã có cùng Part number:</h3>
+      <h3 class="mini" style="margin:12px 0 6px">Với linh kiện đã có (cùng Manufacturer Part Number, hoặc cùng Part number khi không có MPN):</h3>
+      <p class="hint" style="margin:0 0 6px">Các dòng cùng Part number nhưng khác MPN được giữ thành linh kiện riêng.</p>
       <div class="radio-list">
         <label><input type="radio" name="qtyMode" value="add" checked> <span><b>Cộng dồn số lượng</b> (nhập kho thêm) — tồn mới = tồn cũ + số trong file</span></label>
         <label><input type="radio" name="qtyMode" value="replace"> <span><b>Ghi đè số lượng</b> (kiểm kê) — tồn mới = số trong file</span></label>
@@ -527,17 +544,17 @@ async function importFlow() {
 
 function applyImport(res, { qtyMode, fillEmpty, person }) {
   const when = new Date();
-  const byPn = new Map(state.parts.filter((p) => p.part_number).map((p) => [norm(p.part_number), p]));
+  const byKey = new Map(state.parts.map((p) => [partKey(p), p]));
   const st = { created: 0, updated: 0, qtyChanged: 0 };
   const noteBase = `Import từ ${res.file_name}`;
   for (const r of res.rows) {
-    const key = norm(r.part_number);
-    const existing = key ? byPn.get(key) : null;
+    const key = partKey(r);
+    const existing = byKey.get(key);
     if (existing) {
       let touched = false;
       if (fillEmpty) {
         for (const f of TEXT_FIELDS) {
-          if (f === 'part_number') continue;
+          if (f === 'part_number' || f === 'mpn') continue;
           if (!existing[f] && r[f]) { existing[f] = String(r[f]).trim(); touched = true; }
         }
       }
@@ -555,7 +572,7 @@ function applyImport(res, { qtyMode, fillEmpty, person }) {
     } else {
       const p = normalizePart({ ...r, id: uid(), quantity: r.quantity ?? 0 });
       state.parts.push(p);
-      if (p.part_number) byPn.set(norm(p.part_number), p);
+      byKey.set(key, p);
       log('import', p, p.quantity, p.quantity, person, `${noteBase} (dòng ${r.row}, tạo mới)`, when);
       st.created++;
     }
@@ -604,19 +621,51 @@ async function restoreFlow() {
 }
 
 /* ---------------- rendering: inventory ---------------- */
+/* ---- search: every word must match (any field, any order), accents and
+   separators ignored. Folded text is cached per part and rebuilt on change. */
+const searchCache = new Map();
+function searchIndex(p) {
+  const sig = TEXT_FIELDS.map((f) => p[f]).join('\u0002');
+  let e = searchCache.get(p.id);
+  if (!e || e.sig !== sig) {
+    const hay = TEXT_FIELDS.map((f) => fold(p[f])).join(' \u0001 ');
+    e = { sig, hay, compact: compactOf(hay) };
+    searchCache.set(p.id, e);
+  }
+  return e;
+}
+function parseQuery(q) {
+  return fold(q).split(/\s+/).filter(Boolean).map((t) => ({ t, c: compactOf(t) }));
+}
+function matchesQuery(idx, tokens) {
+  return tokens.every(({ t, c }) => idx.hay.includes(t) || (c.length > 0 && idx.compact.includes(c)));
+}
+const collator = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
+/* Empty values sort last so parts without MPN do not crowd the top. */
+function cmpText(a, b) {
+  const ea = !String(a ?? '').trim(), eb = !String(b ?? '').trim();
+  if (ea !== eb) return ea ? 1 : -1;
+  return collator.compare(String(a ?? ''), String(b ?? ''));
+}
+
 function visibleParts() {
-  const q = norm(ui.search);
-  let list = state.parts.filter((p) => {
+  const tokens = parseQuery(ui.search);
+  const list = state.parts.filter((p) => {
     if (ui.category && p.category !== ui.category) return false;
     if (ui.location && p.location !== ui.location) return false;
-    if (ui.onlyEmpty && p.quantity > 0) return false;
-    if (!q) return true;
-    return TEXT_FIELDS.some((f) => norm(p[f]).includes(q)) || String(p.quantity) === q;
+    if (ui.onlyEmpty && p.quantity >= 1) return false;
+    return tokens.length === 0 || matchesQuery(searchIndex(p), tokens);
   });
   const { key, dir } = ui.sort;
   list.sort((a, b) => {
-    if (key === 'quantity') return (a.quantity - b.quantity) * dir;
-    return String(a[key]).localeCompare(String(b[key]), 'vi', { numeric: true, sensitivity: 'base' }) * dir;
+    const r = (key === 'quantity' ? a.quantity - b.quantity : cmpText(a[key], b[key])) * dir;
+    if (r) return r;
+    for (const k of ['mpn', 'part_number', 'name']) {
+      if (k === key) continue;
+      const t = cmpText(a[k], b[k]);
+      if (t) return t;
+    }
+    return 0;
   });
   return list;
 }
@@ -625,21 +674,21 @@ function renderParts() {
   const list = visibleParts();
   const body = $('#parts-body');
   body.innerHTML = list.map((p) => `
-    <tr data-id="${p.id}" class="${ui.selected.has(p.id) ? 'selected' : ''}">
+    <tr data-id="${p.id}" class="${ui.selected.has(p.id) ? 'selected' : ''} ${p.quantity < 1 ? 'out' : ''}">
       <td class="col-check"><input type="checkbox" data-select="${p.id}" ${ui.selected.has(p.id) ? 'checked' : ''}></td>
       <td class="mono">${esc(p.part_number)}</td>
       <td class="ellipsis" title="${esc(p.name)}">${esc(p.name)}</td>
       <td>${esc(p.footprint)}</td>
       <td>${esc(p.pitch)}</td>
-      <td class="num"><span class="qty-pill ${p.quantity <= 0 ? 'qty-zero' : ''}">${fmtNum(p.quantity)}</span></td>
+      <td class="num qty">${p.quantity < 1 ? '<span class="badge-out">Hết hàng</span>' : ''}<span class="qty-pill ${p.quantity < 1 ? 'qty-zero' : ''}">${fmtNum(p.quantity)}</span></td>
       <td class="ellipsis" title="${esc(p.description)}">${esc(p.description)}</td>
       <td>${esc(p.manufacturer)}</td>
       <td class="mono">${esc(p.mpn)}</td>
       <td>${esc(p.category)}</td>
       <td>${esc(p.location)}</td>
       <td class="col-actions"><div class="actions">
-        <button type="button" class="small primary" data-action="take" ${p.quantity <= 0 ? 'disabled title="Đã hết"' : ''}>Lấy</button>
-        <button type="button" class="small" data-action="add">Thêm</button>
+        <button type="button" class="small btn-take" data-action="take" ${p.quantity < 1 ? 'disabled title="Đã hết hàng"' : ''}>Lấy</button>
+        <button type="button" class="small btn-add" data-action="add">Thêm</button>
         <button type="button" class="small" data-action="edit">Sửa</button>
         <button type="button" class="small danger" data-action="delete">Xóa</button>
       </div></td>
@@ -673,10 +722,10 @@ function renderParts() {
   });
 
   const total = state.parts.reduce((s, p) => s + p.quantity, 0);
-  const out = state.parts.filter((p) => p.quantity <= 0).length;
-  $('#status-counts').textContent =
+  const out = state.parts.filter((p) => p.quantity < 1).length;
+  $('#status-counts').innerHTML =
     `${fmtNum(state.parts.length)} linh kiện · tổng tồn ${fmtNum(total)}` +
-    (out ? ` · ${fmtNum(out)} đã hết` : '') +
+    (out ? ` · <span class="status-out">${fmtNum(out)} hết hàng</span>` : '') +
     (list.length !== state.parts.length ? ` · đang hiển thị ${fmtNum(list.length)}` : '');
 }
 
@@ -694,12 +743,15 @@ function renderFilters() {
 
 /* ---------------- rendering: history ---------------- */
 function renderHistory() {
-  const q = norm(ui.hist.search);
+  const tokens = parseQuery(ui.hist.search);
   const list = state.history.filter((h) => {
     if (ui.hist.kind && h.kind !== ui.hist.kind) return false;
     if (ui.hist.person && h.person !== ui.hist.person) return false;
-    if (!q) return true;
-    return [h.part_number, h.name, h.person, h.note, KIND_LABEL[h.kind] || h.kind, h.ts].some((v) => norm(v).includes(q));
+    if (!tokens.length) return true;
+    const d = parseTs(h.ts);
+    const hay = fold([h.part_number, h.mpn, h.name, h.person, h.note, KIND_LABEL[h.kind] || h.kind,
+      d ? fmtDate(d) : h.ts, d ? fmtWeekday(d) : ''].join(' \u0001 '));
+    return matchesQuery({ hay, compact: compactOf(hay) }, tokens);
   });
   $('#history-body').innerHTML = list.map((h) => {
     const d = parseTs(h.ts);
@@ -711,6 +763,7 @@ function renderHistory() {
       <td class="mono">${d ? fmtTime(d) : ''}</td>
       <td><span class="kind kind-${esc(h.kind)}">${esc(KIND_LABEL[h.kind] || h.kind)}</span></td>
       <td class="mono">${esc(h.part_number)}</td>
+      <td class="mono">${esc(h.mpn)}</td>
       <td class="ellipsis" title="${esc(h.name)}">${esc(h.name)}</td>
       <td class="num ${deltaCls}">${deltaTxt}</td>
       <td class="num">${fmtNum(h.after)}</td>
@@ -738,7 +791,11 @@ function switchTab(name) {
 function wire() {
   $$('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
-  $('#search').addEventListener('input', (e) => { ui.search = e.target.value; renderParts(); });
+  const runSearch = debounce(() => { ui.search = $('#search').value; renderParts(); }, 120);
+  $('#search').addEventListener('input', runSearch);
+  $('#search').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.value) { e.preventDefault(); e.target.value = ''; ui.search = ''; renderParts(); }
+  });
   $('#filter-category').addEventListener('change', (e) => { ui.category = e.target.value; renderParts(); });
   $('#filter-location').addEventListener('change', (e) => { ui.location = e.target.value; renderParts(); });
   $('#filter-empty').addEventListener('change', (e) => { ui.onlyEmpty = e.target.checked; renderParts(); });
@@ -798,7 +855,11 @@ function wire() {
     if (tr) { const p = findPart(tr.dataset.id); if (p) openEditPart(p); }
   });
 
-  $('#hist-search').addEventListener('input', (e) => { ui.hist.search = e.target.value; renderHistory(); });
+  const runHistSearch = debounce(() => { ui.hist.search = $('#hist-search').value; renderHistory(); }, 120);
+  $('#hist-search').addEventListener('input', runHistSearch);
+  $('#hist-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.value) { e.preventDefault(); e.target.value = ''; ui.hist.search = ''; renderHistory(); }
+  });
   $('#hist-kind').addEventListener('change', (e) => { ui.hist.kind = e.target.value; renderHistory(); });
   $('#hist-person').addEventListener('change', (e) => { ui.hist.person = e.target.value; renderHistory(); });
 

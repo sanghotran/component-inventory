@@ -31,6 +31,8 @@ pub struct HistoryEntry {
     pub kind: String,
     pub part_id: String,
     pub part_number: String,
+    /// Manufacturer Part Number at the time of the entry
+    pub mpn: String,
     pub name: String,
     /// Signed quantity change (negative when taking out).
     pub delta: i64,

@@ -120,7 +120,7 @@ pub struct ImportResult {
     pub mapping: Vec<ColumnMapping>,
     pub unmapped: Vec<String>,
     pub rows: Vec<ImportedRow>,
-    /// Rows under the header that had neither part number nor name
+    /// Rows under the header that had no part number, name or MPN
     pub skipped_rows: usize,
     /// Rows whose quantity cell was non-empty but not a number
     pub bad_quantity_rows: usize,
@@ -200,7 +200,7 @@ fn detect_header(grid: &Grid) -> Option<(usize, Vec<ColumnMapping>)> {
                 }
             }
         }
-        let has_key = mapping.iter().any(|m| matches!(m.field, Field::PartNumber | Field::Name));
+        let has_key = mapping.iter().any(|m| matches!(m.field, Field::PartNumber | Field::Name | Field::Mpn));
         if mapping.len() >= 2 && has_key {
             let better = best.as_ref().map_or(true, |(_, b)| mapping.len() > b.len());
             if better {
@@ -232,7 +232,8 @@ fn grid_to_result(grid: &Grid, file_name: &str, sheet: &str) -> Option<ImportRes
     for (ri, row) in grid.iter().enumerate().skip(hr + 1) {
         let part_number = get(row, Field::PartNumber);
         let name = get(row, Field::Name);
-        if part_number.is_empty() && name.is_empty() {
+        let mpn = get(row, Field::Mpn);
+        if part_number.is_empty() && name.is_empty() && mpn.is_empty() {
             skipped += 1;
             continue;
         }
@@ -250,7 +251,7 @@ fn grid_to_result(grid: &Grid, file_name: &str, sheet: &str) -> Option<ImportRes
             quantity,
             description: get(row, Field::Description),
             manufacturer: get(row, Field::Manufacturer),
-            mpn: get(row, Field::Mpn),
+            mpn,
             category: get(row, Field::Category),
             location: get(row, Field::Location),
         });
