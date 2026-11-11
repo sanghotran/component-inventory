@@ -1,0 +1,15 @@
+{
+  "name": "component-inventory",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Quản lý linh kiện - theo dõi tồn kho (Tauri 2)",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "test:core": "cargo test -p inventory-core"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

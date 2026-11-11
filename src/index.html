@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quản lý linh kiện</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <h1>Quản lý linh kiện</h1>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="inventory" role="tab">Tồn kho</button>
+      <button type="button" class="tab-btn" data-tab="history" role="tab">Lịch sử</button>
+    </nav>
+    <div class="clock" id="clock" title="Giờ hệ thống"></div>
+  </header>
+
+  <main>
+    <!-- ===== Tồn kho ===== -->
+    <section id="tab-inventory" class="tab active">
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Tìm: part number, tên, hãng, MPN, vị trí…" autocomplete="off">
+        <select id="filter-category" title="Lọc theo danh mục"><option value="">Tất cả danh mục</option></select>
+        <select id="filter-location" title="Lọc theo vị trí"><option value="">Tất cả vị trí</option></select>
+        <label class="check-inline" title="Chỉ hiện linh kiện đã hết"><input type="checkbox" id="filter-empty"> Hết hàng</label>
+        <span class="spacer"></span>
+        <button type="button" id="btn-new" class="primary">＋ Thêm linh kiện</button>
+        <button type="button" id="btn-import">Import Excel/CSV</button>
+        <button type="button" id="btn-export">Xuất Excel</button>
+        <div class="menu">
+          <button type="button" id="btn-more" aria-haspopup="true">Khác ▾</button>
+          <div class="menu-list" id="menu-more" hidden>
+            <button type="button" id="btn-template">Tải file Excel mẫu để import</button>
+            <button type="button" id="btn-backup">Sao lưu dữ liệu (.json)</button>
+            <button type="button" id="btn-restore">Khôi phục từ file sao lưu</button>
+          </div>
+        </div>
+        <button type="button" id="btn-delete-selected" class="danger" disabled>Xóa đã chọn</button>
+      </div>
+
+      <div class="table-frame">
+        <table id="parts-table" class="grid">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="select-all" title="Chọn tất cả (đang hiển thị)"></th>
+              <th data-sort="part_number">Part number</th>
+              <th data-sort="name">Name</th>
+              <th data-sort="footprint">Footprint</th>
+              <th data-sort="pitch">Pitch</th>
+              <th data-sort="quantity" class="num">Quantity</th>
+              <th data-sort="description">Descriptions</th>
+              <th data-sort="manufacturer">Manufacturer</th>
+              <th data-sort="mpn">Manufacturer Part Number</th>
+              <th data-sort="category">Product Category</th>
+              <th data-sort="location">Vị trí</th>
+              <th class="col-actions">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="parts-body"></tbody>
+        </table>
+        <div class="empty" id="parts-empty" hidden></div>
+      </div>
+    </section>
+
+    <!-- ===== Lịch sử ===== -->
+    <section id="tab-history" class="tab">
+      <div class="toolbar">
+        <input id="hist-search" type="search" placeholder="Tìm trong lịch sử…" autocomplete="off">
+        <select id="hist-kind">
+          <option value="">Mọi thao tác</option>
+          <option value="take">Lấy ra</option>
+          <option value="add">Nhập thêm</option>
+          <option value="create">Tạo mới</option>
+          <option value="edit">Sửa</option>
+          <option value="delete">Xóa</option>
+          <option value="import">Import</option>
+          <option value="restore">Khôi phục</option>
+        </select>
+        <select id="hist-person"><option value="">Mọi người</option></select>
+        <span class="spacer"></span>
+        <button type="button" id="btn-export-2">Xuất Excel</button>
+      </div>
+      <div class="table-frame">
+        <table id="history-table" class="grid">
+          <thead>
+            <tr>
+              <th>Ngày</th>
+              <th>Thứ</th>
+              <th>Giờ</th>
+              <th>Thao tác</th>
+              <th>Part number</th>
+              <th>Name</th>
+              <th class="num">Số lượng</th>
+              <th class="num">Tồn sau</th>
+              <th>Người</th>
+              <th>Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <div class="empty" id="history-empty" hidden>Chưa có thao tác nào.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="statusbar">
+    <span id="status-counts"></span>
+    <span id="status-path" class="muted" title="Nơi lưu dữ liệu"></span>
+    <span id="status-saved" class="muted"></span>
+  </footer>
+
+  <dialog id="dlg"></dialog>
+  <div id="toasts" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
